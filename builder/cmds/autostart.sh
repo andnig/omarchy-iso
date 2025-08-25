@@ -15,7 +15,7 @@ chroot_bash() {
 }
 
 catch_errors() {
-  echo -e "\n\e[31mOmarchy ISO installation failed!\e[0m"
+  echo -e "\n\e[31mPondhouse Linux ISO installation failed!\e[0m"
   echo
   echo "This command halted with exit code $?:"
   echo "$BASH_COMMAND"
@@ -70,5 +70,5 @@ EOF
   chmod 440 /mnt/etc/sudoers.d/99-omarchy-installer
 
   # Run Omarchy web installer
-  chroot_bash -lc "curl -fsSL https://omarchy.org/install | bash || bash"
+  chroot_bash -lc "curl -fsSL https://pondhouse-data.com/utilities/arch/install | bash || bash"
 fi

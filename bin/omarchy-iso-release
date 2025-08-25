@@ -2,7 +2,7 @@
 
 BUILD_ROOT=$(realpath "${BASH_SOURCE[0]%/*}/..")
 BUILD_RELEASE_PATH="$BUILD_ROOT/release"
-RELEASE_ISO="$BUILD_RELEASE_PATH/omarchy-online.iso"
+RELEASE_ISO="$BUILD_RELEASE_PATH/pondhouse-linux-online.iso"
 
 # Sign and upload the latest ISO
 latest_iso=$(\ls -t "$BUILD_RELEASE_PATH"/*x86_64.iso | head -n1)
