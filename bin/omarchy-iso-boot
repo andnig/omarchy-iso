@@ -13,7 +13,7 @@ fi
 
 DISK="/tmp/omarchy-iso-boot.qcow2"
 if [[ ! -f $DISK || $2 != "reuse" ]]; then
-  qemu-img create -f qcow2 "$DISK" 20G
+  qemu-img create -f qcow2 "$DISK" 30G
 fi
 
 cp /usr/share/edk2/x64/OVMF_VARS.4m.fd /tmp/OVMF_VARS.4m.fd
@@ -22,7 +22,7 @@ cp /usr/share/edk2/x64/OVMF_VARS.4m.fd /tmp/OVMF_VARS.4m.fd
 qemu-system-x86_64 \
   -cpu host -enable-kvm -machine q35,accel=kvm \
   -smp "$(nproc)" \
-  -m 8192 \
+  -m 16000 \
   -drive if=pflash,format=raw,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.4m.fd \
   -drive if=pflash,format=raw,file=/tmp/OVMF_VARS.4m.fd \
   -drive file="$DISK",format=qcow2,if=none,id=drive0 \
