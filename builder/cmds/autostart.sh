@@ -38,7 +38,7 @@ catch_errors() {
   echo "                                 "
 
   if [[ -z ${OMARCHY_USER-} ]]; then
-    echo "You must reboot and start over to try again"
+    echo "You can retry by running: ~/.automated_script.sh"
   else
     echo "You can retry by running: bash ~/.local/share/omarchy/install.sh || bash"
     chroot_bash
@@ -70,5 +70,6 @@ EOF
   chmod 440 /mnt/etc/sudoers.d/99-omarchy-installer
 
   # Run Omarchy web installer
-  chroot_bash -lc "curl -fsSL https://pondhouse-data.com/utilities/arch/install | bash || bash"
+  OMARCHY_INSTALL_URL=$(cat omarchy_installer_url.txt 2>/dev/null || echo "https://omarchy.org/install")
+  chroot_bash -lc "curl -fsSL $OMARCHY_INSTALL_URL | bash || bash"
 fi

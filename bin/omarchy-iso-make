@@ -7,40 +7,50 @@ set -e
 git submodule update --init --recursive --jobs=8
 
 # Prepare build repo
+BUILD_SCRIPT="builder/online.sh"
 BUILD_ROOT=$(realpath "${BASH_SOURCE[0]%/*}/..")
 BUILD_RELEASE_PATH="$BUILD_ROOT/release"
 mkdir -p "$BUILD_RELEASE_PATH"
-
-# Determine which build script to use
-if [[ $1 == "--offline" ]]; then
-  BUILD_SCRIPT="builder/offline.sh"
-else
-  BUILD_SCRIPT="builder/online.sh"
-fi
 
 OMARCHY_CONFIGURATOR_REPO="${OMARCHY_CONFIGURATOR_REPO:-omacom-io/omarchy-configurator}"
 OMARCHY_CONFIGURATOR_REF="${OMARCHY_CONFIGURATOR_REF:-master}"
 
 OMARCHY_INSTALLER_REPO="${OMARCHY_INSTALLER_REPO:-basecamp/omarchy}"
 OMARCHY_INSTALLER_REF="${OMARCHY_INSTALLER_REF:-master}"
+OMARCHY_INSTALLER_URL="${OMARCHY_INSTALLER_URL:-https://omarchy.org/install}"
 
-# Run the builder
-docker run --rm \
-  --privileged \
-  -e "OMARCHY_CONFIGURATOR_REPO=$OMARCHY_CONFIGURATOR_REPO" \
-  -e "OMARCHY_CONFIGURATOR_REF=$OMARCHY_CONFIGURATOR_REF" \
-  -e "OMARCHY_INSTALLER_REPO=$OMARCHY_INSTALLER_REPO" \
-  -e "OMARCHY_INSTALLER_REF=$OMARCHY_INSTALLER_REF" \
-  -v "$BUILD_RELEASE_PATH/:/out/" \
-  -v "$BUILD_ROOT/$BUILD_SCRIPT:/$BUILD_SCRIPT:ro" \
-  -v "$BUILD_ROOT/archiso:/archiso:ro" \
-  -v "$BUILD_ROOT/builder:/builder:ro" \
-  archlinux/archlinux:latest /$BUILD_SCRIPT
+DOCKER_ARGS=(
+  --rm
+  --privileged
+  -e "OMARCHY_CONFIGURATOR_REPO=$OMARCHY_CONFIGURATOR_REPO"
+  -e "OMARCHY_CONFIGURATOR_REF=$OMARCHY_CONFIGURATOR_REF"
+  -e "OMARCHY_INSTALLER_REPO=$OMARCHY_INSTALLER_REPO"
+  -e "OMARCHY_INSTALLER_REF=$OMARCHY_INSTALLER_REF"
+  -e "OMARCHY_INSTALLER_URL=$OMARCHY_INSTALLER_URL"
+  -v "$BUILD_RELEASE_PATH/:/out/"
+  -v "$BUILD_ROOT/$BUILD_SCRIPT:/$BUILD_SCRIPT:ro"
+  -v "$BUILD_ROOT/archiso:/archiso:ro"
+  -v "$BUILD_ROOT/builder:/builder:ro"
+)
+
+# Use local pacman cache if you already have one on host to speed up repeat runs
+if [ -d "/var/cache/pacman/pkg" ]; then
+  DOCKER_ARGS+=(-v "/var/cache/pacman/pkg:/var/cache/pacman/pkg")
+fi
+
+# Run the builder with assembled args
+docker run "${DOCKER_ARGS[@]}" archlinux/archlinux:latest /$BUILD_SCRIPT
 
 # Make iso accessible to all
 sudo chmod 777 -R "$BUILD_RELEASE_PATH"
 
-# Offer to boot the new build
-echo
+# Move as install ref
 latest_iso=$(\ls -t "$BUILD_RELEASE_PATH"/*.iso | head -n1)
-gum confirm "Boot $latest_iso?" && omarchy-iso-boot "$latest_iso"
+iso_ref="${latest_iso%.*}-$OMARCHY_INSTALLER_REF.iso"
+mv "$latest_iso" "$iso_ref"
+
+# Offer to boot the new build
+if [[ $1 != "--no-boot-offer" ]]; then
+  echo
+  gum confirm "Boot $iso_ref?" && omarchy-iso-boot "$iso_ref"
+fi
