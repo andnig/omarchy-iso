@@ -37,11 +37,10 @@ catch_errors() {
   echo "    ▀▀▀▀▀▀▀ ▀ ▀ ▀▀▀  ▀ ▀▀▀▀▀▀    "
   echo "                                 "
 
-  if [[ -z ${OMARCHY_USER-} ]]; then
-    echo "You can retry by running: ~/.automated_script.sh"
+  if gum confirm "Retry installation?"; then
+    ./.automated_script.sh
   else
-    echo "You can retry by running: bash ~/.local/share/omarchy/install.sh || bash"
-    chroot_bash
+    echo "You can retry later by running: ./.automated_script.sh"
   fi
 }
 
