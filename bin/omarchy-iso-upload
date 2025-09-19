@@ -11,4 +11,7 @@ if [[ ! -f ~/.config/rclone/rclone.conf ]]; then
 fi
 
 rclone copy $1 Omarchy:omarchy/ -P
-rclone copy $1.sig Omarchy:omarchy/ -P
+
+if [[ -f $1.sig ]]; then
+  rclone copy $1.sig Omarchy:omarchy/ -P
+fi

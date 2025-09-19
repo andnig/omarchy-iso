@@ -2,20 +2,23 @@
 
 BUILD_ROOT=$(realpath "${BASH_SOURCE[0]%/*}/..")
 BUILD_RELEASE_PATH="$BUILD_ROOT/release"
+BUILD_VERSION="3.0.0"
 
 # Make ISOs
 if [[ $1 != "--no-make" ]]; then
   echo -e "\e[32mMaking master ISO\e[0m"
-  OMARCHY_INSTALLER_REF=master omarchy-iso-make --no-boot-offer
+  OMARCHY_INSTALLER_REF=master omarchy-iso-make --no-cache --no-boot-offer
+
   echo -e "\e[32m\nMaking dev ISO\e[0m"
-  OMARCHY_INSTALLER_REF=dev OMARCHY_INSTALL_URL=https://omarchy.org/install-dev omarchy-iso-make --no-boot-offer
+
+  OMARCHY_INSTALLER_REF=dev omarchy-iso-make --no-cache --no-boot-offer
 else
   echo -e "\e[31mSkipping remaking ISOs\e[0m"
 fi
 
 # Sign and upload master ISO
 latest_master_iso=$(\ls -t "$BUILD_RELEASE_PATH"/*x86_64-master.iso | head -n1)
-release_master_iso="$BUILD_RELEASE_PATH/pondhouse-linux-online.iso"
+release_master_iso="$BUILD_RELEASE_PATH/pondhouse-linux-$BUILD_VERSION.iso"
 cp "$latest_master_iso" "$release_master_iso"
 echo -e "\e[32mSigning master ISO\e[0m"
 omarchy-iso-sign "$release_master_iso"
@@ -23,7 +26,7 @@ omarchy-iso-upload "$release_master_iso"
 
 # Sign and upload dev ISO
 latest_dev_iso=$(\ls -t "$BUILD_RELEASE_PATH"/*x86_64-dev.iso | head -n1)
-release_dev_iso="$BUILD_RELEASE_PATH/pondhouse-linux-online-dev.iso"
+release_dev_iso="$BUILD_RELEASE_PATH/omarchy-$BUILD_VERSION-dev.iso"
 cp "$latest_dev_iso" "$release_dev_iso"
 echo -e "\e[32mSigning dev ISO\e[0m"
 omarchy-iso-sign "$release_dev_iso"

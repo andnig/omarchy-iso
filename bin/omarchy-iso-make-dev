@@ -1,5 +1,3 @@
 #!/bin/bash
 
-OMARCHY_INSTALLER_REF=dev \
-  OMARCHY_INSTALL_URL=https://omarchy.org/install-dev \
-  omarchy-iso-make
+OMARCHY_INSTALLER_REF=dev omarchy-iso-make
