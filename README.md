@@ -39,3 +39,7 @@ Run `./bin/omarchy-iso-upload [release/omarchy.iso]`. This requires you've confi
 ## Full release of the ISO
 
 Run `./bin/omarchy-iso-release` to create, test, sign, and upload the ISO in one flow.
+
+## Error handling
+
+- If you get an error about packages being corrupt, remove the offline cache directory `sudo rm -rf $HOME/.cache/omarchy/iso_xxxxx`.
