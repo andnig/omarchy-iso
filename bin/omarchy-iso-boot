@@ -11,19 +11,19 @@ if ! pacman -Q qemu-full >/dev/null || ! pacman -Q edk2-ovmf >/dev/null; then
   sudo pacman -S --noconfirm --needed --quiet qemu-full edk2-ovmf
 fi
 
-DISK="/tmp/omarchy-iso-boot.qcow2"
+DISK="/data/omarchy-iso-boot.qcow2"
 if [[ ! -f $DISK || $2 != "reuse" ]]; then
-  qemu-img create -f qcow2 "$DISK" 20G
-  cp /usr/share/edk2/x64/OVMF_VARS.4m.fd /tmp/OVMF_VARS.4m.fd
+  qemu-img create -f qcow2 "$DISK" 40G
+  cp /usr/share/edk2/x64/OVMF_VARS.4m.fd /data/OVMF_VARS.4m.fd
 fi
 
 # Boot from ISO before we've installed, then boot from drive after
 qemu-system-x86_64 \
   -cpu host -enable-kvm -machine q35,accel=kvm \
   -smp "$(nproc)" \
-  -m 16000 \
+  -m 12000 \
   -drive if=pflash,format=raw,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.4m.fd \
-  -drive if=pflash,format=raw,file=/tmp/OVMF_VARS.4m.fd \
+  -drive if=pflash,format=raw,file=/data/OVMF_VARS.4m.fd \
   -drive file="$DISK",format=qcow2,if=none,id=drive0 \
   -device virtio-blk-pci,drive=drive0,bootindex=1 \
   -drive file="$1",media=cdrom,if=none,format=raw,id=cdrom0 \

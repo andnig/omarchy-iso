@@ -66,7 +66,7 @@ if [ -f "$build_cache_dir/airootfs/root/omarchy/install/custom/custom-yay.packag
   else
     # Consistent pacman settings for ONLINE lookups/downloads
     online_conf="/configs/pacman-online.conf"
-    online_dbpath="/tmp/offlinedb" # same path you already used earlier
+    online_dbpath="/tmp/offlinedb"
     mkdir -p "$online_dbpath"
 
     # Create builder user
