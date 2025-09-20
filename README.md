@@ -21,7 +21,7 @@ You can customize the repositories used during the build process by passing in v
 Example usage:
 
 ```bash
-OMARCHY_INSTALLER_REPO="andnig/dotfiles-arch" OMARCHY_INSTALLER_URL="https://pondhouse-data.com/utilities/arch/install" ./bin/omarchy-iso-make
+OMARCHY_INSTALLER_REPO="andnig/pondhouse-linux" OMARCHY_INSTALLER_URL="https://pondhouse-data.com/utilities/arch/install" ./bin/omarchy-iso-make
 ```
 
 ## Testing the ISO
