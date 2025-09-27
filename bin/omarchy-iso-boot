@@ -4,6 +4,7 @@ set -e
 
 if [ $# -eq 0 ]; then
   echo "Usage: omarchy-iso-boot [release/omarchy.iso] [reuse]"
+  echo "  SSH available at: ssh -p 2222 root@localhost (after installing openssh)"
   exit 1
 fi
 
@@ -31,5 +32,6 @@ qemu-system-x86_64 \
   -device virtio-vga-gl \
   -display gtk,gl=on \
   -usb -device usb-tablet \
-  -netdev user,id=net0 \
-  -device virtio-net-pci,netdev=net0
+  -netdev user,id=net0,hostfwd=tcp::2222-:22 \
+  -device virtio-net-pci,netdev=net0 \
+  -boot menu=on

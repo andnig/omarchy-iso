@@ -1,12 +1,13 @@
-openssh
-efibootmgr
+alsa-firmware
 amd-ucode
-intel-ucode
-sof-firmware
 base
 base-devel
+efibootmgr
+intel-ucode
 linux-firmware
 linux
 limine
+openssh
 pipewire
 snapper
+sof-firmware
