@@ -40,6 +40,8 @@ DOCKER_ARGS=(
   --privileged
   -e "OMARCHY_INSTALLER_REPO=$OMARCHY_INSTALLER_REPO"
   -e "OMARCHY_INSTALLER_REF=$OMARCHY_INSTALLER_REF"
+  -e "HOST_UID=$(id -u)"
+  -e "HOST_GID=$(id -g)"
   -v "$BUILD_RELEASE_PATH/:/out/"
   -v "$BUILD_ROOT/$BUILD_SCRIPT:/$BUILD_SCRIPT:ro"
   -v "$BUILD_ROOT/archiso:/archiso:ro"

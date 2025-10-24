@@ -29,6 +29,11 @@ install_arch() {
 install_omarchy() {
   chroot_bash -lc "sudo pacman -S --noconfirm --needed gum" >/dev/null
   chroot_bash -lc "source /home/$OMARCHY_USER/.local/share/omarchy/install.sh || bash"
+
+  # Reboot if requested by installer
+  if [[ -f /mnt/var/tmp/omarchy-install-completed ]]; then
+    reboot
+  fi
 }
 
 # Set Tokyo Night color scheme for the terminal
@@ -85,6 +90,10 @@ install_base_system() {
   # Mount the offline mirror so it's accessible in the chroot
   mkdir -p /mnt/var/cache/omarchy/mirror/offline
   mount --bind /var/cache/omarchy/mirror/offline /mnt/var/cache/omarchy/mirror/offline
+
+  # Mount the packages dir so it's accessible in the chroot
+  mkdir -p /mnt/opt/packages
+  mount --bind /opt/packages /mnt/opt/packages
 
   # No need to ask for sudo during the installation (omarchy itself responsible for removing after install)
   mkdir -p /mnt/etc/sudoers.d
