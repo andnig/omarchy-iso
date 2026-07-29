@@ -15,13 +15,36 @@ while [[ $# -gt 0 ]]; do
     NO_BOOT_OFFER=1
     shift
     ;;
+  --local-source)
+    LOCAL_SOURCE=1
+    OMARCHY_MIRROR=edge
+    shift
+    ;;
+  --dev)
+    OMARCHY_INSTALLER_REF=dev
+    OMARCHY_MIRROR=edge
+    shift
+    ;;
+  --quattro)
+    OMARCHY_INSTALLER_REF=quattro
+    OMARCHY_MIRROR=edge
+    shift
+    ;;
+  --rc)
+    OMARCHY_MIRROR=rc
+    OMARCHY_INSTALLER_REF=rc
+    shift
+    ;;
   *)
     echo "Unknown option: $1"
-    echo "Usage: $0 [--no-cache] [--no-boot-offer]"
+    echo "Usage: $0 [--no-cache] [--no-boot-offer] [--local-source] [--dev] [--quattro] [--rc]"
     exit 1
     ;;
   esac
 done
+
+# Clear out old packages
+sudo rm -rf /var/cache/pacman/pkg/*
 
 # Ensure we have the submodule checked out
 git submodule update --init --recursive --jobs=8
@@ -34,12 +57,14 @@ mkdir -p "$BUILD_RELEASE_PATH"
 
 OMARCHY_INSTALLER_REPO="${OMARCHY_INSTALLER_REPO:-basecamp/omarchy}"
 OMARCHY_INSTALLER_REF="${OMARCHY_INSTALLER_REF:-master}"
+OMARCHY_MIRROR="${OMARCHY_MIRROR:-stable}"
 
 DOCKER_ARGS=(
   --rm
   --privileged
   -e "OMARCHY_INSTALLER_REPO=$OMARCHY_INSTALLER_REPO"
   -e "OMARCHY_INSTALLER_REF=$OMARCHY_INSTALLER_REF"
+  -e "OMARCHY_MIRROR=$OMARCHY_MIRROR"
   -e "HOST_UID=$(id -u)"
   -e "HOST_GID=$(id -g)"
   -v "$BUILD_RELEASE_PATH/:/out/"
@@ -49,16 +74,20 @@ DOCKER_ARGS=(
   -v "$BUILD_ROOT/configs:/configs:ro"
 )
 
+# Use local source of Omarchy from $OMARCHY_PATH instead of git checkout
+if [[ -n "${LOCAL_SOURCE-}" ]]; then
+  DOCKER_ARGS+=(-v "$OMARCHY_PATH:/omarchy:ro")
+fi
+
 # Use local pacman cache if you already have one on host to speed up repeat runs
 if [ -d "/var/cache/pacman/pkg" ]; then
   DOCKER_ARGS+=(-v "/var/cache/pacman/pkg:/var/cache/pacman/pkg")
 fi
 
-# Mount the build cache directory where packages are downloaded
+# Mount the build cache directory where packages are downloaded. Channels use
+# different package snapshots and must never share an offline mirror cache.
 if [[ -z "$NO_CACHE" ]]; then
-  # using a dated dir on the host to refresh daily if building multiple times
-  BUILD_DATE=$(date +%Y-%m-%d)
-  OFFLINE_REPO_BUILD_CACHE_DIR="$HOME/.cache/omarchy/iso_${BUILD_DATE}/airootfs/var/cache/omarchy"
+  OFFLINE_REPO_BUILD_CACHE_DIR="$HOME/.cache/omarchy/iso_${OMARCHY_MIRROR}/airootfs/var/cache/omarchy"
   mkdir -p "$OFFLINE_REPO_BUILD_CACHE_DIR"
   # Mount to /var/cache/airootfs/var/cache/omarchy since that's where repo packages go in the ISO
   DOCKER_ARGS+=(-v "$OFFLINE_REPO_BUILD_CACHE_DIR:/var/cache/airootfs/var/cache/omarchy")

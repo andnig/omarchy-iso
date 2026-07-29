@@ -1,14 +1,34 @@
 #!/bin/bash
 
-if [ $# -eq 0 ]; then
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
   echo "usage: omarchy-iso-sign [release/omarchy.iso]"
   exit 1
 fi
 
-if ! pacman -Q gnupg >/dev/null; then
-  sudo pacman -S --noconfirm --needed --quiet gnupg
-  echo "you'll need to generate a new key with: gpg --full-generate-key"
+iso="$1"
+
+if [[ ! -f $iso ]]; then
+  echo "ISO not found: $iso" >&2
+  exit 1
 fi
 
-gnupg_user_key=$(gpg --list-secret-keys --keyid-format=long | awk '/^[[:space:]]/{print $1; exit}')
-gpg --local-user "$gnupg_user_key" --output $1.sig --detach-sig $1
+if ! pacman -Q gnupg >/dev/null 2>&1; then
+  sudo pacman -S --noconfirm --needed --quiet gnupg
+fi
+
+signing_key="$(
+  gpg --batch --with-colons --list-secret-keys |
+    awk -F: '$1 == "fpr" { print $10; exit }'
+)"
+
+if [[ -z $signing_key ]]; then
+  echo "No GPG secret key found. Create one with: gpg --full-generate-key" >&2
+  exit 1
+fi
+
+gpg --batch --yes \
+  --local-user "$signing_key" \
+  --output "$iso.sig" \
+  --detach-sig "$iso"

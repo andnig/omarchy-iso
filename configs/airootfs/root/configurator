@@ -43,6 +43,7 @@ Dutch|nl
 English (UK)|uk
 English (US)|us
 English (US, Dvorak)|dvorak
+English (US, Colemak)|colemak
 Estonian|et
 Finnish|fi
 French|fr
@@ -108,7 +109,7 @@ user_form() {
   done
 
   while true; do
-    password=$(gum input --placeholder "Used for user + root + encryption" --prompt.foreground="#845DF9" --password --prompt "Password> ") || abort
+    password=$(gum input --placeholder "Used for user + root, and disk encryption when enabled" --prompt.foreground="#845DF9" --password --prompt "Password> ") || abort
     password_confirmation=$(gum input --placeholder "Must match the password you just typed" --prompt.foreground="#845DF9" --password --prompt "Confirm> ") || abort
 
     if [[ -n "$password" && "$password" == "$password_confirmation" ]]; then
@@ -121,21 +122,21 @@ user_form() {
   done
 
   # Hash the password using yescrypt
-  password_hash=$(openssl passwd -6 "$password")
+  password_hash=$(printf '%s' "$password" | openssl passwd -6 -stdin)
 
   full_name=$(gum input --placeholder "Used for git authentication (hit return to skip)" --prompt.foreground="#845DF9" --prompt "Full name> ")
   email_address=$(gum input --placeholder "Used for git authentication (hit return to skip)" --prompt.foreground="#845DF9" --prompt "Email address> ")
 
   while true; do
-    hostname=$(gum input --placeholder "Alphanumeric without spaces (or return for 'pondhouse-pc')" --prompt.foreground="#845DF9" --prompt "Hostname> ")
+    hostname=$(gum input --placeholder "Letters, digits, and dashes (or return for 'pondhouse-pc')" --prompt.foreground="#845DF9" --prompt "Hostname> ")
 
-    if [[ "$hostname" =~ ^[A-Za-z_][A-Za-z0-9_-]*\$?$ ]]; then
+    if [[ "$hostname" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]]; then
       break
     elif [[ -z $hostname ]]; then
       hostname="pondhouse-pc"
       break
     else
-      notice "Hostname must be alphanumeric using dashes or underscores but no spaces" 1
+      notice "Hostname must be 1-63 letters, digits, or dashes, and cannot start or end with a dash" 1
     fi
   done
 
@@ -176,26 +177,71 @@ done
 
 get_disk_info() {
   local device="$1"
-  local size model
+  local size vendor model label
 
   # Get basic disk information
   size=$(lsblk -dno SIZE "$device" 2>/dev/null)
-  model=$(lsblk -dno MODEL "$device" 2>/dev/null | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+  vendor=$(lsblk -dno VENDOR "$device" 2>/dev/null | sed 's/ *$//')
+  model=$(lsblk -dno MODEL "$device" 2>/dev/null | sed 's/ *$//')
+
+  # Combine vendor and model, avoiding duplication
+  label=""
+  if [[ -n $vendor && -n $model ]]; then
+    if [[ $model == *$vendor* ]]; then
+      label="$model"
+    else
+      label="$vendor $model"
+    fi
+  elif [[ -n $model ]]; then
+    label="$model"
+  elif [[ -n $vendor ]]; then
+    label="$vendor"
+  fi
 
   # Format display string
   local display="$device"
-  [[ -n "$size" ]] && display="$display ($size)"
-  [[ -n "$model" ]] && display="$display - $model"
+  [[ -n $size ]] && display="$display ($size)"
+  [[ -n $label ]] && display="$display - $label"
+
+  # Append compact partition summary
+  local part_summary
+  part_summary=$(lsblk -nro TYPE,NAME,FSTYPE,MOUNTPOINT "$device" 2>/dev/null | \
+    awk '$1=="part" { printf "%s%s%s", s, ($3==""?"unknown":$3), ($4==""?"":"("$4")"); s=", " }')
+  [[ -n $part_summary ]] && display+=" [$part_summary]"
 
   echo "$display"
+}
+
+get_root_disk() {
+  local device="$1"
+  local parent
+
+  [[ -n $device ]] || return 1
+
+  # /run/archiso/bootmnt usually resolves to the boot partition, but the
+  # installer picker works with whole disks. Walk back to the parent disk so
+  # the install media itself never shows up as a wipe target.
+  device=$(readlink -f "$device" 2>/dev/null || printf "%s\n" "$device")
+
+  while true; do
+    parent=$(lsblk -dno PKNAME "$device" 2>/dev/null | tail -n1)
+    [[ -n $parent ]] || break
+    device="/dev/$parent"
+  done
+
+  if [[ $(lsblk -dno TYPE "$device" 2>/dev/null) == "disk" ]]; then
+    printf "%s\n" "$device"
+  fi
 }
 
 disk_form() {
   step "Let's select where to install Pondhouse Linux..."
 
   # Don't offer the install media as an option (Arch ISO mounts it here)
+  local boot_source
   local exclude_disk
-  exclude_disk=$(findmnt -no SOURCE /run/archiso/bootmnt 2>/dev/null || true)
+  boot_source=$(findmnt -no SOURCE /run/archiso/bootmnt 2>/dev/null || true)
+  exclude_disk=$(get_root_disk "$boot_source")
 
   # List all installable disks, excluding the boot device if present
   local available_disks
@@ -221,15 +267,46 @@ disk_form() {
 
 disk_form
 
-while true; do
-  gum style "Everything will be overwritten. There is no recovery possible."
+confirm_disk_overwrite() {
+  local mode="encrypted"
+  local affirmative confirm_status
 
-  echo
-  if gum confirm --affirmative "Yes, format disk" --negative "No, change it" "Confirm overwriting ${disk}"; then
-    break
-  else
-    disk_form
-  fi
+  while true; do
+    clear_logo
+    echo
+    gum style "Everything will be overwritten. There is no recovery possible."
+
+    if [[ $mode == "encrypted" ]]; then
+      gum style --foreground 8 "Press Ctrl+C for unencrypted install."
+      affirmative="Yes, install"
+    else
+      affirmative="Yes, install without encryption"
+    fi
+
+    echo
+    gum confirm --affirmative "$affirmative" --negative "No, change it" "Confirm overwriting ${disk}"
+    confirm_status=$?
+
+    case $confirm_status in
+      0)
+        [[ $mode == "encrypted" ]] && encrypt_installation=true || encrypt_installation=false
+        return 0
+        ;;
+      1)
+        return 1
+        ;;
+      130)
+        [[ $mode == "encrypted" ]] && mode="unencrypted" || mode="encrypted"
+        ;;
+      *)
+        abort
+        ;;
+    esac
+  done
+}
+
+while ! confirm_disk_overwrite; do
+  disk_form
 done
 
 clear
@@ -244,9 +321,15 @@ password_escaped=$(echo -n "$password" | jq -Rsa)
 password_hash_escaped=$(echo -n "$password_hash" | jq -Rsa)
 username_escaped=$(echo -n "$username" | jq -Rsa)
 
+if [[ $encrypt_installation == true ]]; then
+  credentials_encryption_line="    \"encryption_password\": $password_escaped,"
+else
+  credentials_encryption_line=""
+fi
+
 cat <<-_EOF_ >user_credentials.json
 {
-    "encryption_password": $password_escaped,
+$credentials_encryption_line
     "root_enc_password": $password_hash_escaped,
     "users": [
         {
@@ -258,6 +341,8 @@ cat <<-_EOF_ >user_credentials.json
     ]
 }
 _EOF_
+
+printf '%s\n' "$encrypt_installation" >user_encrypt_installation.txt
 
 # Setup partition layout
 disk_size=$(lsblk -bdno SIZE "$disk")
@@ -277,6 +362,22 @@ if lspci -nn 2>/dev/null | grep -q "106b:180[12]"; then
   kernel_choice="linux-t2"
 else
   kernel_choice="linux"
+fi
+
+if [[ $encrypt_installation == true ]]; then
+  disk_encryption_config=$(cat <<-_EOF_
+,
+        "disk_encryption": {
+            "encryption_type": "luks",
+            "lvm_volumes": [],
+            "iter_time": 2000,
+            "partitions": [ "8c2c2b92-1070-455d-b76a-56263bab24aa" ],
+            "encryption_password": $password_escaped
+        }
+_EOF_
+)
+else
+  disk_encryption_config=""
 fi
 
 cat <<-_EOF_ >user_configuration.json
@@ -348,14 +449,7 @@ cat <<-_EOF_ >user_configuration.json
                 ],
                 "wipe": true
             }
-        ],
-        "disk_encryption": {
-            "encryption_type": "luks",
-            "lvm_volumes": [],
-            "iter_time": 2000,
-            "partitions": [ "8c2c2b92-1070-455d-b76a-56263bab24aa" ],
-            "encryption_password": $password_escaped
-        }
+        ]$disk_encryption_config
     },
     "hostname": "$hostname",
     "kernels": [ "$kernel_choice" ],
@@ -383,7 +477,9 @@ cat <<-_EOF_ >user_configuration.json
     },
     "packages": [
         "base-devel",
-        "git"
+        "git",
+        "omarchy-keyring",
+        "snapper"
     ],
     "profile_config": {
         "gfx_driver": null,
@@ -407,5 +503,8 @@ if [[ $1 == "dry" ]]; then
   echo -e "\nUser Email Address:"
   cat user_email_address.txt
 
-  rm user_configuration.json user_credentials.json user_full_name.txt user_email_address.txt
+  echo -e "\nDisk Encryption:"
+  cat user_encrypt_installation.txt
+
+  rm user_configuration.json user_credentials.json user_full_name.txt user_email_address.txt user_encrypt_installation.txt
 fi

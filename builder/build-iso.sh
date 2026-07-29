@@ -7,6 +7,14 @@ pacman-key --init
 pacman --noconfirm -Sy archlinux-keyring
 pacman --noconfirm -Sy archiso git sudo base-devel jq grub
 
+# Pre-import the omarchy signing key so pacman can verify packages without a keyserver lookup
+pacman-key --add /builder/omarchy.gpg
+pacman-key --lsign-key 40DFB630FF42BCFFB047046CF0134EE680CAC571
+
+# Install omarchy-keyring for package verification during build
+pacman --config /configs/pacman-online-${OMARCHY_MIRROR}.conf --noconfirm -Sy omarchy-keyring
+pacman-key --populate omarchy
+
 # Setup build locations
 build_cache_dir="/var/cache"
 offline_mirror_dir="$build_cache_dir/airootfs/var/cache/omarchy/mirror/offline"
@@ -21,15 +29,22 @@ cp -r /archiso/configs/releng/* $build_cache_dir/
 rm "$build_cache_dir/airootfs/etc/motd"
 
 # Avoid using reflector for mirror identification as we are relying on the global CDN
-rm "$build_cache_dir/airootfs/etc/systemd/system/multi-user.target.wants/reflector.service"
+rm -rf "$build_cache_dir/airootfs/etc/systemd/system/multi-user.target.wants/reflector.service"
 rm -rf "$build_cache_dir/airootfs/etc/systemd/system/reflector.service.d"
 rm -rf "$build_cache_dir/airootfs/etc/xdg/reflector"
 
 # Bring in our configs
 cp -r /configs/* $build_cache_dir/
 
-# Clone Omarchy itself
-git clone -b $OMARCHY_INSTALLER_REF https://github.com/$OMARCHY_INSTALLER_REPO.git "$build_cache_dir/airootfs/root/omarchy"
+# Persist OMARCHY_MIRROR so it's available at install time
+echo "$OMARCHY_MIRROR" > "$build_cache_dir/airootfs/root/omarchy_mirror"
+
+# Setup Omarchy itself
+if [[ -d /omarchy ]]; then
+  cp -rp /omarchy "$build_cache_dir/airootfs/root/omarchy"
+else
+  git clone -b $OMARCHY_INSTALLER_REF https://github.com/$OMARCHY_INSTALLER_REPO.git "$build_cache_dir/airootfs/root/omarchy"
+fi
 
 # Make log uploader available in the ISO too
 mkdir -p "$build_cache_dir/airootfs/usr/local/bin/"
@@ -61,7 +76,7 @@ mkdir -p "$build_cache_dir/airootfs/opt/packages/"
 cp "/tmp/$NODE_FILENAME" "$build_cache_dir/airootfs/opt/packages/"
 
 # Add our additional packages to packages.x86_64
-arch_packages=(linux-t2 git gum jq openssl plymouth tzupdate)
+arch_packages=(linux-t2 git gum jq openssl plymouth tzupdate omarchy-keyring lvm2 cryptsetup parted)
 printf '%s\n' "${arch_packages[@]}" >>"$build_cache_dir/packages.x86_64"
 
 # Build list of all the packages needed for the offline mirror
@@ -73,7 +88,8 @@ all_packages+=($(grep -v '^#' /builder/archinstall.packages | grep -v '^$'))
 
 # Download all the packages to the offline mirror inside the ISO
 mkdir -p /tmp/offlinedb
-pacman --config /configs/pacman-online.conf --noconfirm -Syw "${all_packages[@]}" --cachedir $offline_mirror_dir/ --dbpath /tmp/offlinedb
+online_conf="/configs/pacman-online-${OMARCHY_MIRROR}.conf"
+pacman --config "$online_conf" --noconfirm -Syw "${all_packages[@]}" --cachedir $offline_mirror_dir/ --dbpath /tmp/offlinedb
 
 # Handle AUR packages if the file exists
 if [ -f "$build_cache_dir/airootfs/root/omarchy/install/custom/custom-yay.packages" ]; then
@@ -89,7 +105,6 @@ if [ -f "$build_cache_dir/airootfs/root/omarchy/install/custom/custom-yay.packag
     echo "AUR package list is empty; skipping AUR build."
   else
     # Consistent pacman settings for ONLINE lookups/downloads
-    online_conf="/configs/pacman-online.conf"
     online_dbpath="/tmp/offlinedb"
     mkdir -p "$online_dbpath"
 
@@ -160,7 +175,7 @@ if [ -f "$build_cache_dir/airootfs/root/omarchy/install/custom/custom-yay.packag
     fi
 
     # Clean up
-    rm -rf "$temp_pkg_dir" /tmp/all-deps*.txt "$tmp_dbpath" "$tmp_conf"
+    rm -rf "$temp_pkg_dir" /tmp/all-deps*.txt
     userdel -r builder 2>/dev/null || true
     rm -f /etc/sudoers.d/builder
   fi
@@ -174,9 +189,9 @@ repo-add --new "$offline_mirror_dir/offline.db.tar.gz" "$offline_mirror_dir/"*.p
 mkdir -p /var/cache/omarchy/mirror
 ln -s "$offline_mirror_dir" "/var/cache/omarchy/mirror/offline"
 
-# Copy the pacman.conf to the ISO's /etc directory so the live environment uses our
-# same config when booted
-cp $build_cache_dir/pacman.conf "$build_cache_dir/airootfs/etc/pacman.conf"
+# Copy the offline pacman.conf to the ISO's /etc directory so the live environment uses our
+# same config when booted.
+cp $build_cache_dir/pacman-offline.conf "$build_cache_dir/airootfs/etc/pacman.conf"
 
 # Finally, we assemble the entire ISO
 mkarchiso -v -w "$build_cache_dir/work/" -o "/out/" "$build_cache_dir/"

@@ -8,7 +8,7 @@ See the ISO link on [omarchy.org](https://omarchy.org).
 
 ## Creating the ISO
 
-Run `./bin/omarchy-iso-make` and the output goes into `./release`.
+Run `./bin/omarchy-iso-make` and the output goes into `./release`. You can build from your local `$OMARCHY_PATH` for testing with `--local-source`, from the dev branch with `--dev`, or from the quattro branch with `--quattro`. The dev and quattro builds use the edge package mirror.
 
 ### Environment Variables
 
@@ -16,12 +16,11 @@ You can customize the repositories used during the build process by passing in v
 
 - `OMARCHY_INSTALLER_REPO` - GitHub repository for the installer (default: `basecamp/omarchy`)
 - `OMARCHY_INSTALLER_REF` - Git ref (branch/tag) for the installer (default: `master`)
-- `OMARCHY_INSTALLER_URL` - URL to a custom omarchy installer script (default: `https://pondhouse-data.com/utilities/arch/install`)
 
 Example usage:
 
 ```bash
-OMARCHY_INSTALLER_REPO="andnig/pondhouse-linux" OMARCHY_INSTALLER_URL="https://pondhouse-data.com/utilities/arch/install" ./bin/omarchy-iso-make
+OMARCHY_INSTALLER_REPO="andnig/pondhouse-linux" ./bin/omarchy-iso-make
 ```
 
 ## Testing the ISO
@@ -30,7 +29,7 @@ Run `./bin/omarchy-iso-boot [release/omarchy.iso]`.
 
 ## Signing the ISO
 
-Run `./bin/omarchy-iso-sign [gpg-user] [release/omarchy.iso]`.
+Run `./bin/omarchy-iso-sign [release/omarchy.iso]` using your configured GPG secret key.
 
 ## Uploading the ISO
 
@@ -38,7 +37,7 @@ Run `./bin/omarchy-iso-upload [release/omarchy.iso]`. This requires you've confi
 
 ## Full release of the ISO
 
-Run `./bin/omarchy-iso-release` to create, test, sign, and upload the ISO in one flow.
+Run `./bin/omarchy-iso-release VERSION` to create, sign, and upload stable and dev ISOs. Add `--rc` to release only an RC build instead.
 
 ## Error handling
 

@@ -4,8 +4,9 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VM_DIR="$(dirname "$SCRIPT_DIR")/vm-saves"
-TMP_DISK="/tmp/omarchy-iso-boot.qcow2"
-TMP_OVMF="/tmp/OVMF_VARS.4m.fd"
+VM_STORAGE_DIR="${OMARCHY_VM_STORAGE_DIR:-/data}"
+TMP_DISK="$VM_STORAGE_DIR/omarchy-iso-boot.qcow2"
+TMP_OVMF="$VM_STORAGE_DIR/OVMF_VARS.4m.fd"
 
 mkdir -p "$VM_DIR"
 
@@ -18,7 +19,7 @@ save_vm() {
   fi
 
   if [[ ! -f "$TMP_DISK" || ! -f "$TMP_OVMF" ]]; then
-    echo "Error: No active VM found in /tmp"
+    echo "Error: No active VM found in $VM_STORAGE_DIR"
     echo "Boot a VM first with: omarchy-iso-boot [iso]"
     exit 1
   fi
@@ -73,11 +74,12 @@ boot_vm() {
     exit 1
   fi
 
-  if [[ -f "$TMP_DISK" ]] && ! gum confirm "Override existing /tmp VM?"; then
+  if [[ -f "$TMP_DISK" ]] && ! gum confirm "Override existing VM in $VM_STORAGE_DIR?"; then
     exit 0
   fi
 
-  echo "Copying VM '$name' to /tmp..."
+  mkdir -p "$VM_STORAGE_DIR"
+  echo "Copying VM '$name' to $VM_STORAGE_DIR..."
   cp "$vm_path/omarchy-iso-boot.qcow2" "$TMP_DISK"
   cp "$vm_path/OVMF_VARS.4m.fd" "$TMP_OVMF"
 
@@ -101,7 +103,7 @@ case "${1:-}" in
       "$(gum style --bold 'omarchy-vm') - VM snapshot manager" \
       "" \
       "$(gum style --foreground 245 'Commands:')" \
-      "  save [name]  Save current VM from /tmp" \
+      "  save [name]  Save current VM from $VM_STORAGE_DIR" \
       "  boot [name]  Boot saved VM (interactive if no name)" \
       "  list         List available VMs" \
       "" \
