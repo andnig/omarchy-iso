@@ -5,7 +5,8 @@ set -e
 # Note that these are packages installed to the Arch container used to build the ISO.
 pacman-key --init
 pacman --noconfirm -Sy archlinux-keyring
-pacman --noconfirm -Sy archiso git sudo base-devel jq grub
+pacman --noconfirm -Su
+pacman --noconfirm -S --needed archiso git sudo base-devel jq grub
 
 # Pre-import the omarchy signing key so pacman can verify packages without a keyserver lookup
 pacman-key --add /builder/omarchy.gpg
@@ -74,6 +75,34 @@ echo "$NODE_SHA /tmp/$NODE_FILENAME" | sha256sum -c - || {
 # Copy to ISO
 mkdir -p "$build_cache_dir/airootfs/opt/packages/"
 cp "/tmp/$NODE_FILENAME" "$build_cache_dir/airootfs/opt/packages/"
+
+# Download and verify herdr-reviewr for offline plugin installation
+REVIEWR_VERSION="0.26.1"
+REVIEWR_SOURCE_FILENAME="herdr-reviewr-v$REVIEWR_VERSION-source.tar.gz"
+REVIEWR_BINARY_FILENAME="herdr-reviewr-x86_64-unknown-linux-musl.tar.gz"
+REVIEWR_SOURCE_SHA256="f2d5a5ddd505c6425c98f758576f0ae45c0f8a367497379a43c25dd995ba13f0"
+REVIEWR_BINARY_SHA256="795ab62e30698099f3654ca6bb1e4575185b2938ffdf006a58bd44b8dc35b8ef"
+REVIEWR_SOURCE_URL="https://github.com/persiyanov/herdr-reviewr/archive/refs/tags/v$REVIEWR_VERSION.tar.gz"
+REVIEWR_BINARY_URL="https://github.com/persiyanov/herdr-reviewr/releases/download/v$REVIEWR_VERSION/$REVIEWR_BINARY_FILENAME"
+REVIEWR_SOURCE_ARCHIVE="/tmp/$REVIEWR_SOURCE_FILENAME"
+REVIEWR_BINARY_ARCHIVE="/tmp/$REVIEWR_BINARY_FILENAME"
+REVIEWR_DEST="$build_cache_dir/airootfs/opt/packages/herdr-reviewr"
+REVIEWR_SOURCE_ROOT="herdr-reviewr-$REVIEWR_VERSION"
+
+curl -fsSL --retry 3 "$REVIEWR_SOURCE_URL" -o "$REVIEWR_SOURCE_ARCHIVE"
+printf '%s  %s\n' "$REVIEWR_SOURCE_SHA256" "$REVIEWR_SOURCE_ARCHIVE" | sha256sum -c -
+curl -fsSL --retry 3 "$REVIEWR_BINARY_URL" -o "$REVIEWR_BINARY_ARCHIVE"
+printf '%s  %s\n' "$REVIEWR_BINARY_SHA256" "$REVIEWR_BINARY_ARCHIVE" | sha256sum -c -
+
+rm -rf "$REVIEWR_DEST"
+mkdir -p "$REVIEWR_DEST/bin"
+tar -xzf "$REVIEWR_SOURCE_ARCHIVE" -C "$REVIEWR_DEST" --strip-components=1 \
+  "$REVIEWR_SOURCE_ROOT/herdr-plugin.toml" \
+  "$REVIEWR_SOURCE_ROOT/herdr/install.sh" \
+  "$REVIEWR_SOURCE_ROOT/herdr/sidebar.sh" \
+  "$REVIEWR_SOURCE_ROOT/LICENSE"
+tar -xzf "$REVIEWR_BINARY_ARCHIVE" -C "$REVIEWR_DEST/bin"
+chmod 755 "$REVIEWR_DEST/bin/herdr-reviewr"
 
 # Add our additional packages to packages.x86_64
 arch_packages=(linux-t2 git gum jq openssl plymouth tzupdate omarchy-keyring lvm2 cryptsetup parted)

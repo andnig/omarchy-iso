@@ -4,6 +4,7 @@ set -e
 
 ISO="$1"
 REUSE="$2"
+SSH_PORT="${OMARCHY_VM_SSH_PORT:-2222}"
 
 if [ $# -eq 0 ]; then
   ISO=$(ls -t release/*.iso 2>/dev/null | gum choose --header "Select ISO to boot")
@@ -14,7 +15,7 @@ fi
 
 if [ -z "$ISO" ]; then
   echo "Usage: omarchy-iso-boot [release/omarchy.iso] [reuse]"
-  echo "  SSH available at: ssh -p 2222 root@localhost (after installing openssh)"
+  echo "  SSH available at: ssh -p $SSH_PORT root@localhost (after installing openssh)"
   exit 1
 fi
 
@@ -60,6 +61,6 @@ qemu-system-x86_64 \
   -device virtio-vga-gl \
   -display sdl,gl=on \
   -usb -device usb-tablet \
-  -netdev user,id=net0,hostfwd=tcp::2222-:22 \
+  -netdev user,id=net0,hostfwd=tcp::"$SSH_PORT"-:22 \
   -device virtio-net-pci,netdev=net0 \
   -boot menu=on
